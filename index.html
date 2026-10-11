@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>순익 대시보드</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f5f2;
+  --surface: #fcfcfb;
+  --line: #e4e2dc;
+  --grid: #ecebe6;
+  --text: #0b0b0b;
+  --text-2: #52514e;
+  --muted: #8a8984;
+  --s1: #2a78d6;   /* 순매출 / 이익 */
+  --s2: #eb6834;   /* 광고비 */
+  --neg: #e34948;  /* 적자 */
+  --good: #2f9e5b; /* 좋은 지표 */
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #121211; --surface: #1a1a19; --line: #2e2e2c; --grid: #262624;
+    --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8e88;
+    --s1: #3987e5; --s2: #d95926; --neg: #e66767; --good: #4cbb79; --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121211; --surface: #1a1a19; --line: #2e2e2c; --grid: #262624;
+  --text: #f0efec; --text-2: #c3c2b7; --muted: #8f8e88;
+  --s1: #3987e5; --s2: #d95926; --neg: #e66767; --good: #4cbb79; --accent: #3987e5;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font: 15px/1.5 "Noto Sans KR", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0; letter-spacing: -0.02em; }
+.sub { color: var(--muted); font-size: 13px; margin-top: 2px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+
+/* 잠금 화면 */
+#lock { min-height: 100vh; display: grid; place-items: center; padding: 16px; }
+#lock .card { width: 100%; max-width: 360px; text-align: center; padding: 28px 22px; }
+#lock h1 { margin-bottom: 6px; }
+#lock form { margin-top: 20px; display: grid; gap: 10px; }
+input[type=password] {
+  font: inherit; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--text); text-align: center; letter-spacing: 0.08em;
+}
+input[type=password]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+button {
+  font: inherit; font-weight: 500; padding: 12px; border-radius: 10px; border: 0;
+  background: var(--accent); color: #fff; cursor: pointer;
+}
+button:disabled { opacity: .6; cursor: wait; }
+.remember { display: flex; gap: 6px; justify-content: center; align-items: center; color: var(--text-2); font-size: 13px; }
+.err { color: var(--neg); font-size: 13px; min-height: 20px; }
+
+/* 대시보드 */
+#app[hidden], #lock[hidden] { display: none; }
+header { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { background: transparent; color: var(--text-2); padding: 6px 12px; font-size: 13px; border-radius: 7px; }
+.seg button[aria-pressed=true] { background: var(--text); color: var(--surface); }
+.ghost { background: transparent; color: var(--text-2); border: 1px solid var(--line); padding: 6px 12px; font-size: 13px; }
+
+.kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 12px; }
+.kpi .label { color: var(--text-2); font-size: 13px; }
+.kpi .value { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.kpi .note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.kpi.hero .value { font-size: 28px; }
+.pos { color: var(--text); } .negv { color: var(--neg); }
+
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.chart h2, .tbl h2 { font-size: 15px; margin: 0 0 2px; }
+.chart .desc { color: var(--muted); font-size: 12px; margin-bottom: 8px; }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); margin-bottom: 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 5px; vertical-align: -1px; }
+svg { display: block; width: 100%; height: auto; overflow: visible; }
+svg text { fill: var(--muted); font-size: 11px; font-family: inherit; }
+.tip {
+  position: fixed; pointer-events: none; background: var(--surface); border: 1px solid var(--line);
+  border-radius: 10px; padding: 8px 10px; font-size: 12px; box-shadow: 0 6px 20px rgba(0,0,0,.12);
+  min-width: 150px; z-index: 10; display: none;
+}
+.tip b { display: block; margin-bottom: 4px; font-size: 13px; }
+.tip .r { display: flex; justify-content: space-between; gap: 12px; color: var(--text-2); }
+.tip .r span:last-child { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.tbl { overflow: hidden; }
+.scroll { overflow-x: auto; margin: 8px -18px -18px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+th, td { padding: 9px 12px; text-align: right; border-top: 1px solid var(--line); }
+th { color: var(--text-2); font-weight: 500; position: sticky; top: 0; background: var(--surface); }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+tfoot td { font-weight: 700; }
+tbody tr:hover td { background: var(--bg); }
+.foot { color: var(--muted); font-size: 12px; margin-top: 14px; }
+
+/* 광고 분석 */
+[hidden] { display: none !important; }
+.cmp { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 12px; }
+.cmp .value { font-size: 20px; }
+.cmp .vs { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.good { color: var(--good); } .bad { color: var(--neg); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; border: 1px solid currentColor; }
+.b-증액 { color: var(--good); } .b-유지 { color: var(--accent); } .b-관찰 { color: var(--text-2); }
+.b-중단 { color: var(--neg); } .b-꺼짐 { color: var(--muted); }
+td.note { text-align: left; color: var(--text-2); white-space: normal; min-width: 160px; }
+tr.off td { color: var(--muted); }
+.adsec { margin-bottom: 12px; }
+.rules { color: var(--text-2); font-size: 13px; margin: 2px 0 12px; }
+.report h3 { font-size: 14px; margin: 16px 0 6px; }
+.report ul { margin: 0; padding-left: 18px; color: var(--text); }
+.report li { margin: 4px 0; }
+.report .summary { background: var(--bg); border-radius: 10px; padding: 12px 14px; margin-top: 8px; }
+
+@media (max-width: 860px) {
+  .cmp { grid-template-columns: repeat(2, 1fr); }
+  .kpis { grid-template-columns: repeat(2, 1fr); }
+  .kpi.hero { grid-column: 1 / -1; }
+  .charts { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<section id="lock">
+  <div class="card">
+    <h1>순익 대시보드</h1>
+    <div class="sub">비밀코드를 입력하세요</div>
+    <form id="lockForm" autocomplete="off">
+      <input type="password" id="code" placeholder="비밀코드" autofocus required>
+      <label class="remember"><input type="checkbox" id="remember"> 이 기기에서 기억하기</label>
+      <button type="submit" id="unlockBtn">열기</button>
+      <div class="err" id="err" role="alert"></div>
+    </form>
+  </div>
+</section>
+
+<main id="app" hidden>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1 id="title">일별 순익</h1>
+        <div class="sub" id="updated"></div>
+      </div>
+      <div class="controls">
+        <div class="seg" id="brand" role="group" aria-label="브랜드"></div>
+        <div class="seg" id="view" role="group" aria-label="화면" hidden>
+          <button data-v="profit">순익</button>
+          <button data-v="ads">광고 분석</button>
+        </div>
+        <div class="seg" id="range" role="group" aria-label="기간">
+          <button data-n="7">최근 7일</button>
+          <button data-n="30">최근 30일</button>
+          <button data-n="0">전체</button>
+        </div>
+        <button class="ghost" id="logout">잠그기</button>
+      </div>
+    </header>
+
+    <div id="profitView">
+    <section class="kpis" id="kpis"></section>
+
+    <section class="charts">
+      <div class="card chart">
+        <h2>일별 순익</h2>
+        <div class="desc">순매출 − (수수료 + 원가 + 택배비 + 광고비)</div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>흑자</span><span><i style="background:var(--neg)"></i>적자</span></div>
+        <div id="chartProfit"></div>
+      </div>
+      <div class="card chart">
+        <h2>순매출과 광고비</h2>
+        <div class="desc">하루 단위, 부가세 제외 광고비</div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>순매출</span><span><i style="background:var(--s2)"></i>광고비</span></div>
+        <div id="chartRev"></div>
+      </div>
+    </section>
+
+    <section class="card tbl">
+      <h2>일별 상세</h2>
+      <div class="scroll"><table id="table"></table></div>
+    </section>
+
+    <div class="foot" id="foot"></div>
+    </div>
+
+    <div id="adsView" hidden>
+      <div class="rules" id="adRules"></div>
+      <section class="cmp" id="adCmp"></section>
+      <section class="card tbl adsec">
+        <h2>광고 세트별 판정</h2>
+        <div class="rules" style="margin:0">판정·추천 일예산은 최근 7일 성과로 매일 자동 계산 · 예산은 추천만 하고 직접 바꾸지 않습니다</div>
+        <div class="scroll"><table id="adSets"></table></div>
+      </section>
+      <section class="card tbl adsec">
+        <h2>소재별 성과</h2>
+        <div class="rules" style="margin:0">훅 = 첫 3초 시청 ÷ 노출 · 완시청 = 끝까지(15초) 시청 ÷ 노출 · 클릭→구매 = 구매 ÷ 링크 클릭</div>
+        <div class="scroll"><table id="adAds"></table></div>
+      </section>
+      <section class="card report" id="adReport"></section>
+    </div>
+  </div>
+</main>
+
+<div class="tip" id="tip"></div>
+
+<script>
+const KEY = "tittur-code";
+let DATA = null, RANGE = 7, BRAND = 0, VIEW = "profit";
+const B = () => DATA.brands[BRAND];
+
+const won = n => n == null ? "-" : Math.round(n).toLocaleString("ko-KR");
+const man = n => {
+  const a = Math.abs(n), s = n < 0 ? "−" : "";
+  return a >= 10000 ? s + (a / 10000).toFixed(a >= 1e6 ? 0 : 1).replace(/\.0$/, "") + "만" : s + a.toLocaleString("ko-KR");
+};
+const pct = n => n == null ? "-" : (n * 100).toFixed(1) + "%";
+const md = d => { const [, m, dd] = d.split("-"); return `${+m}/${+dd}`; };
+const dow = d => "일월화수목금토"[new Date(d + "T00:00:00").getDay()];
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+
+async function decrypt(code) {
+  const enc = await (await fetch("data.enc.json", { cache: "no-store" })).json();
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]);
+  const key = await crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt: b64(enc.salt), iterations: enc.iter, hash: "SHA-256" },
+    base, { name: "AES-GCM", length: 256 }, false, ["decrypt"]);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64(enc.iv) }, key, b64(enc.ct));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+
+function store(get, val) {
+  try {
+    if (get) return localStorage.getItem(KEY);
+    val == null ? localStorage.removeItem(KEY) : localStorage.setItem(KEY, val);
+  } catch (e) { return null; }
+}
+
+async function unlock(code, remember) {
+  const btn = document.getElementById("unlockBtn"), err = document.getElementById("err");
+  btn.disabled = true; err.textContent = "";
+  try {
+    DATA = await decrypt(code);
+    if (remember) store(false, code);
+    document.getElementById("lock").hidden = true;
+    document.getElementById("app").hidden = false;
+    render();
+  } catch (e) {
+    err.textContent = "비밀코드가 맞지 않아요.";
+    store(false, null);
+  } finally { btn.disabled = false; }
+}
+
+document.getElementById("lockForm").addEventListener("submit", e => {
+  e.preventDefault();
+  unlock(document.getElementById("code").value, document.getElementById("remember").checked);
+});
+document.getElementById("logout").addEventListener("click", () => {
+  store(false, null); DATA = null; location.reload();
+});
+document.querySelectorAll("#view button").forEach(b => b.addEventListener("click", () => {
+  VIEW = b.dataset.v; render();
+}));
+document.querySelectorAll("#range button").forEach(b => b.addEventListener("click", () => {
+  RANGE = +b.dataset.n; render();
+}));
+
+function rows() {
+  const d = B().days;
+  return RANGE ? d.slice(-RANGE) : d;
+}
+
+function render() {
+  const days = B().days;
+  document.getElementById("brand").innerHTML = DATA.brands.map((b, i) =>
+    `<button data-i="${i}" aria-pressed="${i === BRAND}">${b.name}</button>`).join("");
+  document.querySelectorAll("#brand button").forEach(b => b.addEventListener("click", () => {
+    BRAND = +b.dataset.i; render();
+  }));
+  const hasAds = !!B().ads;
+  if (!hasAds) VIEW = "profit";
+  document.getElementById("view").hidden = !hasAds;
+  document.querySelectorAll("#view button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === VIEW));
+  document.getElementById("range").hidden = VIEW === "ads";
+  document.getElementById("profitView").hidden = VIEW === "ads";
+  document.getElementById("adsView").hidden = VIEW !== "ads";
+  document.getElementById("title").textContent = `${B().name} ${VIEW === "ads" ? "메타 광고 분석" : "일별 순익"}`;
+  if (VIEW === "ads") {
+    const a = B().ads;
+    document.getElementById("updated").textContent =
+      `최근 7일 ${md(a.period.since)} ~ ${md(a.period.until)} · 업데이트 ${DATA.updated}`;
+    renderAds(a);
+    return;
+  }
+  document.getElementById("foot").textContent = B().foot;
+  document.getElementById("updated").textContent =
+    `${md(days[0].date)} ~ ${md(days.at(-1).date)} · 업데이트 ${DATA.updated}`;
+  document.querySelectorAll("#range button").forEach(b => b.setAttribute("aria-pressed", +b.dataset.n === RANGE));
+  const r = rows();
+  renderKpis(r); renderTable(r);
+  renderProfit(r); renderRev(r);
+}
+
+function sum(r, f) { return r.reduce((a, x) => a + f(x), 0); }
+
+function renderKpis(r) {
+  const net = sum(r, x => x.net), ad = sum(r, x => x.ad), profit = sum(r, x => x.profit);
+  const wins = r.filter(x => x.profit > 0).length;
+  const k = [
+    ["hero", "기간 순익", won(profit) + "원", `흑자 ${wins}일 · 적자 ${r.length - wins}일`, profit < 0],
+    ["", "순매출", man(net) + "원", `일평균 ${man(net / r.length)}원`],
+    ["", "광고비", man(ad) + "원", `순매출의 ${pct(ad / net)}`],
+    ["", "ROAS", ad ? (net / ad).toFixed(2) : "-", "순매출 ÷ 광고비"],
+    ["", "순익률", pct(net ? profit / net : null), `총비용 ${man(sum(r, x => x.cost))}원`, profit < 0],
+  ];
+  document.getElementById("kpis").innerHTML = k.map(([c, l, v, n, neg]) =>
+    `<div class="card kpi ${c}"><div class="label">${l}</div><div class="value ${neg ? "negv" : "pos"}">${v}</div><div class="note">${n}</div></div>`).join("");
+}
+
+function renderTable(r) {
+  const cols = [
+    ["날짜", x => `${md(x.date)} (${dow(x.date)})`],
+    ["결제 매출", x => won(x.gross)], ["취소", x => won(x.refund)], ["순매출", x => won(x.net)],
+    ...B().qty.map(q => [q.label, x => x.qty[q.key]]),
+    ["원가", x => won(x.cogs)], ["택배", x => x.parcels], ["택배비", x => won(x.ship)],
+    ["광고비", x => won(x.ad)], ["수수료", x => won(x.fee)], ["총비용", x => won(x.cost)],
+    ["순익", x => `<span class="${x.profit < 0 ? "negv" : ""}">${won(x.profit)}</span>`],
+    ["순익률", x => pct(x.margin)], ["ROAS", x => x.roas ? x.roas.toFixed(2) : "-"],
+  ];
+  const t = r.slice().reverse();
+  const tot = {
+    gross: sum(r, x => x.gross), refund: sum(r, x => x.refund), net: sum(r, x => x.net),
+    cogs: sum(r, x => x.cogs), parcels: sum(r, x => x.parcels), ship: sum(r, x => x.ship),
+    ad: sum(r, x => x.ad), fee: sum(r, x => x.fee), cost: sum(r, x => x.cost), profit: sum(r, x => x.profit),
+  };
+  const foot = ["합계", won(tot.gross), won(tot.refund), won(tot.net), ...B().qty.map(q => sum(r, x => x.qty[q.key])), won(tot.cogs),
+    tot.parcels, won(tot.ship), won(tot.ad), won(tot.fee), won(tot.cost),
+    `<span class="${tot.profit < 0 ? "negv" : ""}">${won(tot.profit)}</span>`,
+    pct(tot.net ? tot.profit / tot.net : null), tot.ad ? (tot.net / tot.ad).toFixed(2) : "-"];
+  document.getElementById("table").innerHTML =
+    `<thead><tr>${cols.map(c => `<th>${c[0]}</th>`).join("")}</tr></thead>` +
+    `<tbody>${t.map(x => `<tr>${cols.map(c => `<td>${c[1](x)}</td>`).join("")}</tr>`).join("")}</tbody>` +
+    `<tfoot><tr>${foot.map(v => `<td>${v}</td>`).join("")}</tr></tfoot>`;
+}
+
+/* ---- 차트 (SVG) ---- */
+const W = 520, H = 240, P = { t: 14, r: 8, b: 26, l: 46 };
+const tip = document.getElementById("tip");
+
+function niceTicks(lo, hi, n = 4) {
+  const span = hi - lo || 1, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0));
+  const step = [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= step0);
+  const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step, t = [];
+  for (let v = a; v <= b + step / 2; v += step) t.push(Math.round(v));
+  return t;
+}
+
+function barPath(x, y0, w, y1) {
+  // 데이터 끝만 4px 둥글게, 기준선 쪽은 각지게
+  const h = Math.abs(y1 - y0), rr = Math.min(4, w / 2, h), up = y1 < y0, top = Math.min(y0, y1);
+  if (h < 0.5) return "";
+  return up
+    ? `M${x},${y0}V${top + rr}Q${x},${top} ${x + rr},${top}H${x + w - rr}Q${x + w},${top} ${x + w},${top + rr}V${y0}Z`
+    : `M${x},${y0}V${y1 - rr}Q${x},${y1} ${x + rr},${y1}H${x + w - rr}Q${x + w},${y1} ${x + w},${y1 - rr}V${y0}Z`;
+}
+
+function frame(el, r, lo, hi) {
+  const ticks = niceTicks(Math.min(0, lo), Math.max(0, hi));
+  const y = v => P.t + (H - P.t - P.b) * (1 - (v - ticks[0]) / (ticks.at(-1) - ticks[0]));
+  const band = (W - P.l - P.r) / r.length;
+  const x = i => P.l + band * i;
+  let s = ticks.map(t => `<line x1="${P.l}" x2="${W - P.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--grid)"/>` +
+    `<text x="${P.l - 6}" y="${y(t) + 4}" text-anchor="end">${man(t)}</text>`).join("");
+  s += `<line x1="${P.l}" x2="${W - P.r}" y1="${y(0)}" y2="${y(0)}" stroke="var(--muted)" stroke-width="1"/>`;
+  const every = Math.ceil(r.length / 10);
+  s += r.map((d, i) => i % every ? "" :
+    `<text x="${x(i) + band / 2}" y="${H - 8}" text-anchor="middle">${md(d.date)}</text>`).join("");
+  return { s, y, x, band };
+}
+
+function hover(el, r, html) {
+  const svg = el.querySelector("svg");
+  svg.querySelectorAll(".hit").forEach(h => {
+    const i = +h.dataset.i;
+    h.addEventListener("mousemove", e => {
+      tip.innerHTML = html(r[i]); tip.style.display = "block";
+      const tx = Math.min(e.clientX + 14, innerWidth - tip.offsetWidth - 8);
+      tip.style.left = tx + "px"; tip.style.top = (e.clientY + 14) + "px";
+      svg.querySelectorAll(`[data-g]`).forEach(g => g.style.opacity = g.dataset.g == i ? 1 : 0.45);
+    });
+    h.addEventListener("mouseleave", () => {
+      tip.style.display = "none";
+      svg.querySelectorAll(`[data-g]`).forEach(g => g.style.opacity = 1);
+    });
+  });
+}
+
+const tipRow = (k, v) => `<div class="r"><span>${k}</span><span>${v}</span></div>`;
+
+function renderProfit(r) {
+  const el = document.getElementById("chartProfit");
+  const vals = r.map(d => d.profit);
+  const f = frame(el, r, Math.min(...vals), Math.max(...vals));
+  const bw = Math.min(28, f.band * 0.6);
+  let s = f.s;
+  r.forEach((d, i) => {
+    const x0 = f.x(i) + (f.band - bw) / 2;
+    s += `<g data-g="${i}"><path d="${barPath(x0, f.y(0), bw, f.y(d.profit))}" fill="${d.profit < 0 ? "var(--neg)" : "var(--s1)"}"/></g>`;
+    s += `<rect class="hit" data-i="${i}" x="${f.x(i)}" y="${P.t}" width="${f.band}" height="${H - P.t - P.b}" fill="transparent"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="일별 순익 막대 차트">${s}</svg>`;
+  hover(el, r, d => `<b>${md(d.date)} (${dow(d.date)})</b>` + tipRow("순익", won(d.profit) + "원") +
+    tipRow("순매출", won(d.net) + "원") + tipRow("총비용", won(d.cost) + "원") + tipRow("순익률", pct(d.margin)));
+}
+
+function renderRev(r) {
+  const el = document.getElementById("chartRev");
+  const f = frame(el, r, 0, Math.max(...r.map(d => Math.max(d.net, d.ad))));
+  const bw = Math.min(16, (f.band * 0.7 - 2) / 2);
+  let s = f.s;
+  r.forEach((d, i) => {
+    const x0 = f.x(i) + (f.band - (bw * 2 + 2)) / 2;
+    s += `<g data-g="${i}"><path d="${barPath(x0, f.y(0), bw, f.y(d.net))}" fill="var(--s1)"/>` +
+      `<path d="${barPath(x0 + bw + 2, f.y(0), bw, f.y(d.ad))}" fill="var(--s2)"/></g>`;
+    s += `<rect class="hit" data-i="${i}" x="${f.x(i)}" y="${P.t}" width="${f.band}" height="${H - P.t - P.b}" fill="transparent"/>`;
+  });
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="일별 순매출과 광고비 막대 차트">${s}</svg>`;
+  hover(el, r, d => `<b>${md(d.date)} (${dow(d.date)})</b>` + tipRow("순매출", won(d.net) + "원") +
+    tipRow("광고비", won(d.ad) + "원") + tipRow("ROAS", d.roas ? d.roas.toFixed(2) : "-"));
+}
+
+/* ---- 광고 분석 ---- */
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const f2 = n => n == null ? "-" : n.toFixed(2);
+const f1p = n => n == null ? "-" : n.toFixed(1) + "%";
+const f2p = n => n == null ? "-" : n.toFixed(2) + "%";
+// 지표별 좋음/나쁨 (계정 기준선)
+const tone = {
+  cpa: (v, R) => v == null ? "" : v <= R.target_cpa ? "good" : v >= R.breakeven_cpa ? "bad" : "",
+  roas: v => v == null ? "" : v >= 3.3 ? "good" : v < 1.9 ? "bad" : "",
+  cpm: v => v == null ? "" : v >= 40000 ? "bad" : v <= 25000 ? "good" : "",
+  ctr: v => v == null ? "" : v >= 4 ? "good" : v < 2 ? "bad" : "",
+  cvr: v => v == null ? "" : v >= 2 ? "good" : v < 1 ? "bad" : "",
+  hook: v => v == null ? "" : v >= 50 ? "good" : v < 30 ? "bad" : "",
+};
+const cell = (cls, txt) => `<span class="${cls}">${txt}</span>`;
+
+function renderAds(a) {
+  const R = a.rules, t = a.total, bm = a.bench;
+  document.getElementById("adRules").textContent =
+    `세딕체어 캠페인 · 메타 화면 기준(실제 카페24 ROAS는 약 10% 높게 나옴) · 목표 CPA ${won(R.target_cpa)}원 이하 = 증액, ${won(R.breakeven_cpa)}원 이상 = 적자 · 지출 ${man(R.min_spend)}원 미만에 구매 1건 이하면 판단 보류`;
+  // 최근 7일 vs 비교 달 (low: 낮을수록 좋음)
+  const cmp = [
+    ["CPA (구매당)", t.cpa, bm.cpa, v => v == null ? "-" : won(v) + "원", true],
+    ["메타 ROAS", t.roas, bm.roas, f2, false],
+    ["CPM (노출 1천)", t.cpm, bm.cpm, v => v == null ? "-" : won(v) + "원", true],
+    ["링크 CTR", t.ctr, bm.ctr, f2p, false],
+    ["클릭 → 구매", t.cvr, bm.cvr, f2p, false],
+    ["훅 (첫 3초)", t.hook, bm.hook, f1p, false],
+  ];
+  document.getElementById("adCmp").innerHTML = cmp.map(([l, v, b, fmt, low]) => {
+    const better = v != null && b != null && (low ? v < b : v > b);
+    const ch = v != null && b ? ((v - b) / b * 100) : null;
+    return `<div class="card kpi"><div class="label">${l}</div><div class="value ${better ? "good" : "bad"}">${fmt(v)}</div>` +
+      `<div class="vs">${a.period.bench} ${fmt(b)} · ${ch == null ? "-" : (ch > 0 ? "+" : "") + ch.toFixed(0) + "%"}</div></div>`;
+  }).join("");
+
+  const setCols = [
+    ["광고 세트", x => esc(x.name)],
+    ["판정", x => `<span class="badge b-${x.verdict}">${x.verdict}</span>`],
+    ["일예산", x => x.budget == null ? "-" : man(x.budget)],
+    ["추천", x => x.rec == null ? "-" : x.rec === x.budget ? "그대로" : x.rec === 0 ? cell("bad", "끄기") : cell("good", man(x.rec))],
+    ["지출", x => won(x.spend)], ["구매", x => x.purchases],
+    ["CPA", x => cell(tone.cpa(x.cpa, R), x.cpa ? won(x.cpa) : "-")],
+    ["ROAS", x => cell(tone.roas(x.roas), f2(x.roas))],
+    ["CPM", x => cell(tone.cpm(x.cpm), won(x.cpm))],
+    ["CTR", x => cell(tone.ctr(x.ctr), f2p(x.ctr))],
+    ["클릭→구매", x => cell(tone.cvr(x.cvr), f2p(x.cvr))],
+    ["훅", x => cell(tone.hook(x.hook), f1p(x.hook))],
+    ["해석", x => x.note || "-", "note"],
+  ];
+  document.getElementById("adSets").innerHTML =
+    `<thead><tr>${setCols.map(c => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>` +
+    a.adsets.map(x => `<tr class="${x.active ? "" : "off"}">${setCols.map(c => `<td class="${c[2] || ""}">${c[1](x)}</td>`).join("")}</tr>`).join("") + "</tbody>";
+
+  const adCols = [
+    ["소재", x => esc(x.name) + (x.active ? "" : ' <span class="badge b-꺼짐">꺼짐</span>')],
+    ["세트", x => esc(x.adset)],
+    ["지출", x => won(x.spend)], ["구매", x => x.purchases],
+    ["CPA", x => cell(tone.cpa(x.cpa, R), x.cpa ? won(x.cpa) : "-")],
+    ["ROAS", x => cell(tone.roas(x.roas), f2(x.roas))],
+    ["훅", x => cell(tone.hook(x.hook), f1p(x.hook))], ["완시청", x => f1p(x.thru)],
+    ["CTR", x => cell(tone.ctr(x.ctr), f2p(x.ctr))],
+    ["클릭→구매", x => cell(tone.cvr(x.cvr), f2p(x.cvr))],
+    ["CPM", x => cell(tone.cpm(x.cpm), won(x.cpm))],
+  ];
+  document.getElementById("adAds").innerHTML =
+    `<thead><tr>${adCols.map(c => `<th>${c[0]}</th>`).join("")}</tr></thead><tbody>` +
+    a.ads.map(x => `<tr class="${x.active ? "" : "off"}">${adCols.map(c => `<td>${c[1](x)}</td>`).join("")}</tr>`).join("") + "</tbody>";
+
+  const r = a.report, el = document.getElementById("adReport");
+  el.hidden = !r;
+  if (r) el.innerHTML = `<h2>분석 · 개선 방향</h2><div class="rules" style="margin:0">작성 ${esc(r.written)} · 분석 기간 ${esc(r.period)} · 표는 매일 갱신, 이 글은 다시 분석할 때 갱신</div>` +
+    `<div class="summary">${esc(r.summary)}</div>` +
+    r.sections.map(s => `<h3>${esc(s.title)}</h3><ul>${s.items.map(i => `<li>${esc(i)}</li>`).join("")}</ul>`).join("");
+}
+
+/* 기억된 코드가 있으면 자동으로 열기 */
+const saved = store(true);
+if (saved) unlock(saved, true);
+</script>
+</body>
+</html>
